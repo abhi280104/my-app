@@ -1,145 +1,132 @@
-import React, { useState } from 'react';
-import { supabase } from '../../services/supabaseClient';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../../services/supabaseClient";
+import { jwtDecode } from "jwt-decode";
 
 const Register = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loadingRegister, setLoadingRegister] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
+
+  // Check existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+
+        if (session) {
+          const decoded = jwtDecode(session.access_token);
+          const role = decoded.user_role?.trim();
+          if (role === "admin") navigate("/admin/dashboard", { replace: true });
+          else navigate("/", { replace: true });
+        }
+      } catch (err) {
+        console.error("Error checking session:", err.message);
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+
+    checkSession();
+  }, [navigate]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (password !== confirmPassword) {
-      setError("Passwords don't match");
+      setError("Passwords do not match.");
       return;
     }
 
-    setLoading(true);
-
-    // 1. Sign up user
-    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
-
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-
-    // 2. Optionally add default role (if trigger is not set up in DB)
-    if (data?.user) {
-      await supabase.from('user_roles').upsert({
-        id: data.user.id,
-        role: 'customer',
+    setLoadingRegister(true);
+    try {
+      const { data, error: registerError } = await supabase.auth.signUp({
+        email,
+        password,
       });
+
+      if (registerError) throw registerError;
+
+      alert("Registration successful! Please check your email to confirm.");
+      navigate("/login");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingRegister(false);
     }
-
-    navigate('/'); // redirect after signup
-    setLoading(false);
   };
 
-  const handleGoogleRegister = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) setError(error.message);
-  };
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <div className="w-16 h-16 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+        <p className="text-gray-700 text-lg animate-pulse">Checking session...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-700">
-      <div className="bg-white bg-opacity-90 backdrop-blur-lg p-10 rounded-3xl shadow-2xl w-full max-w-md animate-fadeIn">
-        <h2 className="text-3xl font-bold mb-8 text-center text-gray-800 tracking-wide">
-          Create Account
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="bg-white shadow-xl rounded-3xl p-10 w-full max-w-md">
+        <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">Create Account</h2>
 
-        {error && <p className="text-red-500 text-center mb-4 font-medium">{error}</p>}
+        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
-        <form onSubmit={handleRegister} className="space-y-6">
-          {/* Email */}
-          <div className="relative">
-            <input
-              type="email"
-              placeholder=" "
-              className="peer w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <label className="absolute left-4 top-4 text-gray-400 text-sm peer-placeholder-shown:top-4 peer-placeholder-shown:text-gray-400 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-indigo-600 peer-focus:text-sm transition-all">
-              Email
-            </label>
-          </div>
-
-          {/* Password */}
-          <div className="relative">
-            <input
-              type="password"
-              placeholder=" "
-              className="peer w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <label className="absolute left-4 top-4 text-gray-400 text-sm peer-placeholder-shown:top-4 peer-placeholder-shown:text-gray-400 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-indigo-600 peer-focus:text-sm transition-all">
-              Password
-            </label>
-          </div>
-
-          {/* Confirm Password */}
-          <div className="relative">
-            <input
-              type="password"
-              placeholder=" "
-              className="peer w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
-            <label className="absolute left-4 top-4 text-gray-400 text-sm peer-placeholder-shown:top-4 peer-placeholder-shown:text-gray-400 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-indigo-600 peer-focus:text-sm transition-all">
-              Confirm Password
-            </label>
-          </div>
-
+        <form onSubmit={handleRegister} className="space-y-5">
+          <input
+            type="email"
+            placeholder="Email"
+            className="w-full p-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            data-testid="email-input"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            className="w-full p-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            data-testid="password-input"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Confirm Password"
+            className="w-full p-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+            value={confirmPassword}
+            data-testid="confirm-password-input"
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition duration-300 shadow-md hover:shadow-lg"
+            disabled={loadingRegister}
+            data-testid="register-button"
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition"
           >
-            {loading ? 'Creating Account...' : 'Register'}
+            {loadingRegister ? "Registering..." : "Register"}
           </button>
         </form>
 
-        <div className="my-6 text-center text-gray-500 relative">
+        <div className="my-6 text-center text-gray-400 relative">
           <span className="bg-white px-3 relative z-10">or</span>
           <div className="absolute top-1/2 left-0 w-full h-px bg-gray-300 -z-0"></div>
         </div>
 
         <button
-          onClick={handleGoogleRegister}
-          className="w-full flex items-center justify-center gap-3 border border-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-100 transition duration-300 shadow-sm"
+          onClick={() => navigate("/login")}
+          className="w-full bg-white border border-gray-300 py-3 rounded-xl flex items-center justify-center gap-2 hover:shadow-md transition"
         >
-          <img
-            src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg"
-            alt="Google"
-            className="w-5 h-5"
-          />
-          Continue with Google
+          Already have an account? Login
         </button>
-
-        <p className="mt-8 text-center text-gray-600">
-          Already have an account?{' '}
-          <span
-            onClick={() => navigate('/login')}
-            className="text-indigo-600 font-semibold cursor-pointer hover:underline"
-          >
-            Login
-          </span>
-        </p>
       </div>
     </div>
   );

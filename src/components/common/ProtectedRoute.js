@@ -1,48 +1,40 @@
-import { Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "../../services/supabaseClient";
+import { Navigate } from 'react-router-dom';
+import { supabase } from '../../services/supabaseClient';
+import { jwtDecode } from 'jwt-decode';
+import { useEffect, useState } from 'react';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
   const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [role, setRole] = useState(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const fetchSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
 
-        if (sessionError || !session) {
-          setAuthorized(false);
-          return;
-        }
-
-        // Fetch user role
-        const { data: userRole, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("id", session.user.id) // adjust if your column is "user_id"
-          .single();
-
-        if (roleError || !userRole) {
-          console.error("Error fetching role:", roleError?.message);
-          setAuthorized(false);
-        } else {
-          setAuthorized(!requiredRole || userRole.role === requiredRole);
-        }
-      } catch (err) {
-        console.error("ProtectedRoute error:", err);
-        setAuthorized(false);
-      } finally {
+      if (!session) {
         setLoading(false);
+        return;
       }
+
+      const decoded = jwtDecode(session.access_token);
+      const cleanRole = decoded.user_role?.trim(); // ✅ trim here
+      setRole(cleanRole);
+      setLoading(false);
     };
 
-    checkAuth();
-  }, [requiredRole]);
+    fetchSession();
+  }, []);
 
   if (loading) return <p>Loading...</p>;
-  return authorized ? children : <Navigate to="/login" />;
+
+  // No session
+  if (!role) return <Navigate to="/login" />;
+
+  // Check for required role
+  if (requiredRole && role !== requiredRole) return <Navigate to="/" />;
+
+  return children;
 };
 
 export default ProtectedRoute;
